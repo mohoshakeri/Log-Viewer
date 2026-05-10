@@ -1,11 +1,12 @@
 import asyncio
 import json
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from utils.config import MAX_RESULTS, PROJECT_ROOT, STREAM_INTERVAL_SECONDS
+from utils.config import FAVICON_URL, LOGO_URL, MAX_RESULTS, PROJECT_ROOT, STREAM_INTERVAL_SECONDS
 from utils.jalali import parse_jalali_datetime
 from utils.logs import list_log_files, search_logs, serialize_entry, serialize_file
 from utils.security import clear_session_cookie, create_session, require_user, set_session_cookie, validate_login
@@ -26,8 +27,19 @@ class SearchPayload(BaseModel):
     levels: list[str] = Field(default_factory=list)
     start_jalali: str = Field(default="", max_length=32)
     end_jalali: str = Field(default="", max_length=32)
+    start_gregorian: str = Field(default="", max_length=32)
+    end_gregorian: str = Field(default="", max_length=32)
     recent_minutes: int | None = Field(default=None, ge=1, le=10080)
     limit: int = Field(default=200, ge=1, le=MAX_RESULTS)
+
+
+def parse_gregorian_datetime(value: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(value.strip().replace("Z", ""))
+    except ValueError:
+        return None
 
 
 # ---------- Page Routes ----------
@@ -39,6 +51,11 @@ async def index() -> FileResponse:
 @router.get("/health")
 async def health() -> JSONResponse:
     return JSONResponse({"status": "ok"})
+
+
+@router.get("/api/config")
+async def config() -> JSONResponse:
+    return JSONResponse({"logo_url": LOGO_URL, "favicon_url": FAVICON_URL})
 
 
 # ---------- Auth Routes ----------
@@ -73,8 +90,8 @@ async def files(username: str = Depends(require_user)) -> JSONResponse:
 @router.post("/api/logs")
 async def logs(payload: SearchPayload, username: str = Depends(require_user)) -> JSONResponse:
     del username
-    start_at = parse_jalali_datetime(payload.start_jalali)
-    end_at = parse_jalali_datetime(payload.end_jalali, end_of_day=True)
+    start_at = parse_gregorian_datetime(payload.start_gregorian) or parse_jalali_datetime(payload.start_jalali)
+    end_at = parse_gregorian_datetime(payload.end_gregorian) or parse_jalali_datetime(payload.end_jalali, end_of_day=True)
     entries, stats = search_logs(
         files=payload.files,
         query=payload.query,
@@ -95,6 +112,8 @@ async def stream(
     levels: list[str] = Query(default=[]),
     start_jalali: str = "",
     end_jalali: str = "",
+    start_gregorian: str = "",
+    end_gregorian: str = "",
     recent_minutes: int | None = Query(default=None, ge=1, le=10080),
     limit: int = Query(default=100, ge=1, le=MAX_RESULTS),
     username: str = Depends(require_user),
@@ -106,8 +125,8 @@ async def stream(
         while True:
             if await request.is_disconnected():
                 break
-            start_at = parse_jalali_datetime(start_jalali)
-            end_at = parse_jalali_datetime(end_jalali, end_of_day=True)
+            start_at = parse_gregorian_datetime(start_gregorian) or parse_jalali_datetime(start_jalali)
+            end_at = parse_gregorian_datetime(end_gregorian) or parse_jalali_datetime(end_jalali, end_of_day=True)
             entries, stats = search_logs(
                 files=files,
                 query=query,

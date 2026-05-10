@@ -219,7 +219,6 @@ def serialize_entry(entry: LogEntry) -> dict:
         "timestamp": entry.timestamp.isoformat(timespec="seconds") if entry.timestamp else None,
         "jalali": format_jalali(entry.timestamp),
         "level": entry.level,
-        "message": entry.message,
         "raw": entry.raw,
         "meta": entry.meta,
     }

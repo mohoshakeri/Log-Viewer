@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta name="color-scheme" content="light dark"/>
   <title>Simple Log Viewer</title>
+  <link id="dynamicFavicon" rel="icon" href=""/>
   <link rel="stylesheet" href="https://lib.arvancloud.ir/vazir-font/33.003/Farsi-Digits-Non-Latin/Vazirmatn-FD-NL-font-face.css"/>
   <style>
     /* ---------- Design Tokens ---------- */
@@ -98,6 +99,15 @@
       font-weight: 900;
       flex: 0 0 auto;
     }
+    .brand-logo {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius);
+      object-fit: contain;
+      flex: 0 0 auto;
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+    }
     .brand h1 {
       font-size: 1rem;
       line-height: 1.2;
@@ -170,6 +180,65 @@
     input:focus, select:focus {
       border-color: var(--accent);
       box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .date-control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 42px;
+      gap: 8px;
+    }
+    .date-control input {
+      cursor: pointer;
+    }
+    .date-picker {
+      position: fixed;
+      width: min(330px, calc(100vw - 24px));
+      z-index: 40;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px;
+    }
+    .date-picker-head {
+      display: grid;
+      grid-template-columns: 38px 1fr 38px;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .date-picker-title {
+      text-align: center;
+      font-weight: 900;
+    }
+    .date-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 6px;
+    }
+    .date-cell {
+      min-height: 34px;
+      border: 1px solid transparent;
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      color: var(--text);
+      padding: 0;
+    }
+    .date-cell:hover, .date-cell.is-selected {
+      border-color: var(--accent);
+      background: color-mix(in srgb, var(--accent) 16%, var(--surface-2));
+    }
+    .date-weekday {
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 4px 0;
+    }
+    .date-picker-foot {
+      display: grid;
+      grid-template-columns: 1fr auto auto;
+      gap: 8px;
+      margin-top: 10px;
     }
     .btn {
       min-height: 38px;
@@ -342,6 +411,11 @@
       max-height: 240px;
       overflow: auto;
     }
+    .json-key { color: #93c5fd; }
+    .json-string { color: #86efac; }
+    .json-number { color: #fbbf24; }
+    .json-boolean { color: #fca5a5; }
+    .json-null { color: #c4b5fd; }
     .empty {
       min-height: 280px;
       display: grid;
@@ -407,7 +481,8 @@
   <div class="shell">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark">SL</div>
+        <img class="brand-logo" id="brandLogo" alt="Logo" hidden/>
+        <div class="brand-mark" id="brandMark">SL</div>
         <div>
           <h1>Simple Log Viewer</h1>
           <small>نمایش، جستجو و پایش زنده لاگ‌ها</small>
@@ -459,11 +534,25 @@
         </div>
         <div class="field">
           <label for="startJalali">شروع شمسی</label>
-          <input id="startJalali" placeholder="1405/02/13 16:30"/>
+          <div class="date-control">
+            <input id="startJalali" placeholder="1405/02/13 16:30" readonly/>
+            <button class="btn icon-btn" id="startJalaliBtn" type="button" title="Jalali Picker">▦</button>
+          </div>
         </div>
         <div class="field">
           <label for="endJalali">پایان شمسی</label>
-          <input id="endJalali" placeholder="1405/02/13 18:00"/>
+          <div class="date-control">
+            <input id="endJalali" placeholder="1405/02/13 18:00" readonly/>
+            <button class="btn icon-btn" id="endJalaliBtn" type="button" title="Jalali Picker">▦</button>
+          </div>
+        </div>
+        <div class="field">
+          <label for="startGregorian">شروع میلادی</label>
+          <input id="startGregorian" type="datetime-local"/>
+        </div>
+        <div class="field">
+          <label for="endGregorian">پایان میلادی</label>
+          <input id="endGregorian" type="datetime-local"/>
         </div>
         <div class="field">
           <label for="limit">تعداد نتیجه</label>
@@ -505,11 +594,17 @@
       stream: null,
       streaming: false,
       debounce: null,
+      picker: null,
+      pickerTarget: null,
+      pickerDate: null,
     };
     const levels = ["ERROR", "WARNING", "INFO", "DEBUG", "TEXT"];
     const els = {
       loginView: document.getElementById("loginView"),
       appView: document.getElementById("appView"),
+      brandLogo: document.getElementById("brandLogo"),
+      brandMark: document.getElementById("brandMark"),
+      dynamicFavicon: document.getElementById("dynamicFavicon"),
       loginForm: document.getElementById("loginForm"),
       loginError: document.getElementById("loginError"),
       logoutBtn: document.getElementById("logoutBtn"),
@@ -526,6 +621,10 @@
       recentMinutes: document.getElementById("recentMinutes"),
       startJalali: document.getElementById("startJalali"),
       endJalali: document.getElementById("endJalali"),
+      startJalaliBtn: document.getElementById("startJalaliBtn"),
+      endJalaliBtn: document.getElementById("endJalaliBtn"),
+      startGregorian: document.getElementById("startGregorian"),
+      endGregorian: document.getElementById("endGregorian"),
       limit: document.getElementById("limit"),
       returnedStat: document.getElementById("returnedStat"),
       matchedStat: document.getElementById("matchedStat"),
@@ -562,6 +661,8 @@
         levels: selectedLevels(),
         start_jalali: els.startJalali.value.trim(),
         end_jalali: els.endJalali.value.trim(),
+        start_gregorian: els.startGregorian.value.trim(),
+        end_gregorian: els.endGregorian.value.trim(),
         recent_minutes: els.recentMinutes.value ? Number(els.recentMinutes.value) : null,
         limit: Number(els.limit.value || 200),
       };
@@ -576,6 +677,20 @@
 
     function levelClass(level) {
       return `level-${String(level || "TEXT").toLowerCase()}`;
+    }
+
+    function syntaxJson(value) {
+      const json = typeof value === "string" ? value : JSON.stringify(value, null, 2);
+      return escapeHtml(json).replace(
+        /("(\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+        (match) => {
+          let cls = "json-number";
+          if (/^"/.test(match)) cls = /:$/.test(match) ? "json-key" : "json-string";
+          else if (/true|false/.test(match)) cls = "json-boolean";
+          else if (/null/.test(match)) cls = "json-null";
+          return `<span class="${cls}">${match}</span>`;
+        }
+      );
     }
 
     function renderStats(stats) {
@@ -594,14 +709,14 @@
         <article class="log-row">
           <div class="log-head">
             <span class="badge ${levelClass(item.level)}">${escapeHtml(item.level)}</span>
-            <span class="log-time">${escapeHtml(item.jalali || item.timestamp || "-")}</span>
+            <span class="log-time">${escapeHtml(item.jalali || "-")} · ${escapeHtml(item.timestamp || "-")}</span>
             <span class="log-file" title="${escapeHtml(item.file)}">${escapeHtml(item.file)}</span>
             <span class="log-line">#${escapeHtml(item.line)}</span>
           </div>
           <div class="log-body">
             <details>
-              <summary>Raw</summary>
-              <pre>${escapeHtml(item.raw)}</pre>
+              <summary>Detail</summary>
+              <pre>${item.meta && Object.keys(item.meta).length ? syntaxJson(item.meta) : escapeHtml(item.raw)}</pre>
             </details>
           </div>
         </article>
@@ -631,6 +746,163 @@
       `).join("");
     }
 
+    /* ---------- Jalali Picker ---------- */
+    function normalizeDigits(value) {
+      return String(value || "").replace(/[۰-۹]/g, (char) => "۰۱۲۳۴۵۶۷۸۹".indexOf(char)).replace(/[٠-٩]/g, (char) => "٠١٢٣٤٥٦٧٨٩".indexOf(char));
+    }
+
+    function jalaliToGregorian(jy, jm, jd) {
+      const gdm = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      const jdm = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+      jy -= 979; jm -= 1; jd -= 1;
+      let jdn = 365 * jy + Math.floor(jy / 33) * 8 + Math.floor(((jy % 33) + 3) / 4);
+      for (let i = 0; i < jm; i++) jdn += jdm[i];
+      jdn += jd;
+      let gdn = jdn + 79;
+      let gy = 1600 + 400 * Math.floor(gdn / 146097);
+      gdn %= 146097;
+      let leap = true;
+      if (gdn >= 36525) {
+        gdn -= 1;
+        gy += 100 * Math.floor(gdn / 36524);
+        gdn %= 36524;
+        if (gdn >= 365) gdn += 1;
+        else leap = false;
+      }
+      gy += 4 * Math.floor(gdn / 1461);
+      gdn %= 1461;
+      if (gdn >= 366) {
+        leap = false;
+        gdn -= 1;
+        gy += Math.floor(gdn / 365);
+        gdn %= 365;
+      }
+      const monthDays = [...gdm];
+      if (leap) monthDays[1] = 29;
+      let gm = 0;
+      while (gm < 12 && gdn >= monthDays[gm]) gdn -= monthDays[gm++];
+      return [gy, gm + 1, gdn + 1];
+    }
+
+    function gregorianToJalali(gy, gm, gd) {
+      const gdm = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+      const jdm = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29];
+      gy -= 1600; gm -= 1; gd -= 1;
+      let gdn = 365 * gy + Math.floor((gy + 3) / 4) - Math.floor((gy + 99) / 100) + Math.floor((gy + 399) / 400);
+      for (let i = 0; i < gm; i++) gdn += gdm[i];
+      if (gm > 1 && ((gy + 1600) % 4 === 0 && ((gy + 1600) % 100 !== 0 || (gy + 1600) % 400 === 0))) gdn += 1;
+      gdn += gd;
+      let jdn = gdn - 79;
+      const jnp = Math.floor(jdn / 12053);
+      jdn %= 12053;
+      let jy = 979 + 33 * jnp + 4 * Math.floor(jdn / 1461);
+      jdn %= 1461;
+      if (jdn >= 366) {
+        jy += Math.floor((jdn - 1) / 365);
+        jdn = (jdn - 1) % 365;
+      }
+      let jm = 0;
+      while (jm < 11 && jdn >= jdm[jm]) jdn -= jdm[jm++];
+      return [jy, jm + 1, jdn + 1];
+    }
+
+    function parseJalaliInput(value) {
+      const match = normalizeDigits(value).match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:\s+(\d{1,2}):(\d{1,2}))?/);
+      if (!match) {
+        const now = new Date();
+        const [jy, jm, jd] = gregorianToJalali(now.getFullYear(), now.getMonth() + 1, now.getDate());
+        return { jy, jm, jd, hour: now.getHours(), minute: now.getMinutes() };
+      }
+      return { jy: +match[1], jm: +match[2], jd: +match[3], hour: +(match[4] || 0), minute: +(match[5] || 0) };
+    }
+
+    function formatJalaliParts(date) {
+      return `${date.jy}/${String(date.jm).padStart(2, "0")}/${String(date.jd).padStart(2, "0")} ${String(date.hour).padStart(2, "0")}:${String(date.minute).padStart(2, "0")}`;
+    }
+
+    function monthLength(jy, jm) {
+      if (jm <= 6) return 31;
+      if (jm <= 11) return 30;
+      return [1, 5, 9, 13, 17, 22, 26, 30].includes(jy % 33) ? 30 : 29;
+    }
+
+    function openPicker(target, anchor) {
+      closePicker();
+      state.pickerTarget = target;
+      state.pickerDate = parseJalaliInput(target.value);
+      state.picker = document.createElement("div");
+      state.picker.className = "date-picker";
+      state.picker.addEventListener("click", (event) => event.stopPropagation());
+      state.picker.addEventListener("mousedown", (event) => event.stopPropagation());
+      document.body.appendChild(state.picker);
+      const rect = anchor.getBoundingClientRect();
+      state.picker.style.top = `${Math.min(rect.bottom + 8, window.innerHeight - 390)}px`;
+      state.picker.style.left = `${Math.max(12, Math.min(rect.left, window.innerWidth - 342))}px`;
+      renderPicker();
+    }
+
+    function closePicker() {
+      if (state.picker) state.picker.remove();
+      state.picker = null;
+      state.pickerTarget = null;
+    }
+
+    function renderPicker() {
+      const d = state.pickerDate;
+      const names = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
+      const weekdays = ["ش", "ی", "د", "س", "چ", "پ", "ج"];
+      const firstGregorian = jalaliToGregorian(d.jy, d.jm, 1);
+      const firstWeekday = (new Date(firstGregorian[0], firstGregorian[1] - 1, firstGregorian[2]).getDay() + 1) % 7;
+      const blanks = Array.from({ length: firstWeekday }, () => `<span></span>`).join("");
+      const days = Array.from({ length: monthLength(d.jy, d.jm) }, (_, idx) => {
+        const day = idx + 1;
+        const selected = day === d.jd ? " is-selected" : "";
+        return `<button type="button" class="date-cell${selected}" data-day="${day}">${day}</button>`;
+      }).join("");
+      state.picker.innerHTML = `
+        <div class="date-picker-head">
+          <button class="btn icon-btn" type="button" data-nav="-1">‹</button>
+          <div class="date-picker-title">${names[d.jm - 1]} ${d.jy}</div>
+          <button class="btn icon-btn" type="button" data-nav="1">›</button>
+        </div>
+        <div class="date-grid">${weekdays.map((item) => `<div class="date-weekday">${item}</div>`).join("")}${blanks}${days}</div>
+        <div class="date-picker-foot">
+          <input id="pickerTime" type="time" value="${String(d.hour).padStart(2, "0")}:${String(d.minute).padStart(2, "0")}"/>
+          <button class="btn" type="button" data-clear="1">پاک</button>
+          <button class="btn btn-primary" type="button" data-apply="1">ثبت</button>
+        </div>
+      `;
+      state.picker.querySelectorAll("[data-nav]").forEach((button) => button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        d.jm += Number(button.dataset.nav);
+        if (d.jm < 1) { d.jm = 12; d.jy -= 1; }
+        if (d.jm > 12) { d.jm = 1; d.jy += 1; }
+        d.jd = Math.min(d.jd, monthLength(d.jy, d.jm));
+        renderPicker();
+      }));
+      state.picker.querySelectorAll("[data-day]").forEach((button) => button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        d.jd = Number(button.dataset.day);
+        renderPicker();
+      }));
+      state.picker.querySelector("[data-clear]").addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.pickerTarget.value = "";
+        state.pickerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        closePicker();
+      });
+      state.picker.querySelector("[data-apply]").addEventListener("click", (event) => {
+        event.stopPropagation();
+        const [hour, minute] = state.picker.querySelector("#pickerTime").value.split(":").map(Number);
+        d.hour = hour || 0;
+        d.minute = minute || 0;
+        state.pickerTarget.value = formatJalaliParts(d);
+        els.recentMinutes.value = "";
+        state.pickerTarget.dispatchEvent(new Event("input", { bubbles: true }));
+        closePicker();
+      });
+    }
+
     /* ---------- Search Flow ---------- */
     async function loadFiles() {
       const data = await api("/api/files");
@@ -652,6 +924,8 @@
       if (body.query) params.set("query", body.query);
       if (body.start_jalali) params.set("start_jalali", body.start_jalali);
       if (body.end_jalali) params.set("end_jalali", body.end_jalali);
+      if (body.start_gregorian) params.set("start_gregorian", body.start_gregorian);
+      if (body.end_gregorian) params.set("end_gregorian", body.end_gregorian);
       if (body.recent_minutes) params.set("recent_minutes", body.recent_minutes);
       params.set("limit", body.limit);
       return `/api/stream?${params.toString()}`;
@@ -697,6 +971,15 @@
 
     async function boot() {
       document.body.dataset.theme = localStorage.getItem("theme") || "light";
+      const config = await api("/api/config").catch(() => ({}));
+      if (config.logo_url) {
+        els.brandLogo.src = config.logo_url;
+        els.brandLogo.hidden = false;
+        els.brandMark.hidden = true;
+      }
+      if (config.favicon_url) {
+        els.dynamicFavicon.href = config.favicon_url;
+      }
       try {
         await api("/api/me");
         await showApp();
@@ -745,9 +1028,25 @@
         els.recentMinutes.value = button.dataset.minutes;
         els.startJalali.value = "";
         els.endJalali.value = "";
+        els.startGregorian.value = "";
+        els.endGregorian.value = "";
       });
     });
-    [els.query, els.recentMinutes, els.startJalali, els.endJalali].forEach((input) => {
+    els.startJalali.addEventListener("click", () => openPicker(els.startJalali, els.startJalaliBtn));
+    els.endJalali.addEventListener("click", () => openPicker(els.endJalali, els.endJalaliBtn));
+    els.startJalaliBtn.addEventListener("click", () => openPicker(els.startJalali, els.startJalaliBtn));
+    els.endJalaliBtn.addEventListener("click", () => openPicker(els.endJalali, els.endJalaliBtn));
+    document.addEventListener("click", (event) => {
+      if (!state.picker) return;
+      if (state.picker.contains(event.target) || event.target === els.startJalaliBtn || event.target === els.endJalaliBtn || event.target === els.startJalali || event.target === els.endJalali) return;
+      closePicker();
+    });
+    [els.startGregorian, els.endGregorian].forEach((input) => {
+      input.addEventListener("input", () => {
+        els.recentMinutes.value = "";
+      });
+    });
+    [els.query, els.recentMinutes, els.startJalali, els.endJalali, els.startGregorian, els.endGregorian].forEach((input) => {
       input.addEventListener("input", () => {
         clearTimeout(state.debounce);
         state.debounce = setTimeout(() => {

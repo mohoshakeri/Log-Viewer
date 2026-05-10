@@ -20,6 +20,8 @@ DEBUG = os.getenv("DEBUG", "NO").upper() == "YES"
 PORT = int(os.getenv("PORT", "8989"))
 BASE_URL = os.getenv("BASE_URL", f"http://localhost:{PORT}").rstrip("/")
 CORS_ALLOWEDS = [item.strip() for item in os.getenv("CORS_ALLOWEDS", "").split(",") if item.strip()]
+LOGO_URL = os.getenv("LOG_VIEWER_LOGO_URL", "").strip()
+FAVICON_URL = os.getenv("LOG_VIEWER_FAVICON_URL", "").strip()
 
 if not CORS_ALLOWEDS:
     cors_defaults = {
