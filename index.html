@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="color-scheme" content="light dark"/>
+  <title>Simple Log Viewer</title>
+  <link rel="stylesheet" href="https://lib.arvancloud.ir/vazir-font/33.003/Farsi-Digits-Non-Latin/Vazirmatn-FD-NL-font-face.css"/>
+  <style>
+    /* ---------- Design Tokens ---------- */
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --surface-2: #f8fafc;
+      --surface-3: #edf2f7;
+      --border: rgba(15, 23, 42, 0.11);
+      --text: #111827;
+      --muted: #64748b;
+      --accent: #0f766e;
+      --accent-2: #2563eb;
+      --danger: #dc2626;
+      --warn: #d97706;
+      --ok: #16a34a;
+      --code: #0f172a;
+      --shadow: 0 16px 48px rgba(15, 23, 42, 0.12);
+      --radius: 8px;
+      --font: "Vazirmatn FD NL", system-ui, sans-serif;
+    }
+
+    body[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #101418;
+      --surface: #171d22;
+      --surface-2: #1f272e;
+      --surface-3: #26313a;
+      --border: rgba(226, 232, 240, 0.12);
+      --text: #f1f5f9;
+      --muted: #9ca3af;
+      --accent: #2dd4bf;
+      --accent-2: #60a5fa;
+      --danger: #f87171;
+      --warn: #fbbf24;
+      --ok: #4ade80;
+      --code: #e5e7eb;
+      --shadow: 0 16px 48px rgba(0, 0, 0, 0.35);
+    }
+
+    /* ---------- Reset Styles ---------- */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { min-height: 100%; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.08), transparent 34%),
+        linear-gradient(315deg, rgba(37, 99, 235, 0.08), transparent 30%),
+        var(--bg);
+      color: var(--text);
+    }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    [hidden] { display: none !important; }
+
+    /* ---------- Shell Layout ---------- */
+    .shell {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 14px clamp(14px, 3vw, 28px);
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in srgb, var(--surface) 86%, transparent);
+      backdrop-filter: blur(16px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: var(--radius);
+      display: grid;
+      place-items: center;
+      color: white;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      font-weight: 900;
+      flex: 0 0 auto;
+    }
+    .brand h1 {
+      font-size: 1rem;
+      line-height: 1.2;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .brand small {
+      display: block;
+      color: var(--muted);
+      font-size: 0.76rem;
+      margin-top: 2px;
+    }
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+    .page {
+      width: min(100%, 1520px);
+      margin: 0 auto;
+      padding: clamp(14px, 3vw, 28px);
+      display: grid;
+      gap: 14px;
+      grid-template-columns: 330px minmax(0, 1fr);
+      align-items: start;
+    }
+
+    /* ---------- Component Styles ---------- */
+    .panel, .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    .panel {
+      padding: 14px;
+    }
+    .panel-title {
+      margin: 0 0 12px;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 10px;
+    }
+    .field label {
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    input, select {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      border-radius: var(--radius);
+      min-height: 40px;
+      padding: 9px 11px;
+      outline: none;
+    }
+    input:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .btn {
+      min-height: 38px;
+      border: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--text);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      transition: 0.18s ease;
+      white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
+    .btn-danger { color: var(--danger); }
+    .icon-btn { width: 38px; padding: 0; }
+    .quick-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .chips {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 6px 10px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    .chip input { width: auto; min-height: auto; }
+    .file-list {
+      display: grid;
+      gap: 7px;
+      max-height: 300px;
+      overflow: auto;
+      padding-inline-end: 4px;
+    }
+    .file-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 8px;
+      align-items: start;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+    .file-item span {
+      overflow-wrap: anywhere;
+      direction: ltr;
+      text-align: left;
+      font-size: 0.78rem;
+    }
+    .file-item small {
+      color: var(--muted);
+      direction: rtl;
+      display: block;
+      margin-top: 3px;
+    }
+    .statusbar {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .stat {
+      min-height: 70px;
+      padding: 12px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .stat strong {
+      display: block;
+      font-size: 1.3rem;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+    .stat span { color: var(--muted); font-size: 0.78rem; }
+
+    /* ---------- Log List ---------- */
+    .results {
+      display: grid;
+      gap: 10px;
+    }
+    .log-row {
+      border: 1px solid var(--border);
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+    .log-head {
+      display: grid;
+      grid-template-columns: auto 170px minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--surface-2);
+      border-bottom: 1px solid var(--border);
+    }
+    .badge {
+      min-width: 78px;
+      text-align: center;
+      padding: 4px 8px;
+      border-radius: var(--radius);
+      font-size: 0.74rem;
+      font-weight: 900;
+      direction: ltr;
+    }
+    .level-error, .level-critical, .level-fatal { background: color-mix(in srgb, var(--danger) 18%, transparent); color: var(--danger); }
+    .level-warning { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+    .level-info { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok); }
+    .level-debug, .level-trace { background: color-mix(in srgb, var(--accent-2) 16%, transparent); color: var(--accent-2); }
+    .level-text { background: var(--surface-3); color: var(--muted); }
+    .log-file {
+      direction: ltr;
+      text-align: left;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .log-time {
+      direction: ltr;
+      text-align: left;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .log-line {
+      color: var(--muted);
+      font-size: 0.76rem;
+      direction: ltr;
+    }
+    .log-body {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+    .message {
+      line-height: 1.8;
+      overflow-wrap: anywhere;
+    }
+    pre {
+      margin: 0;
+      padding: 12px;
+      border-radius: var(--radius);
+      background: #0b1020;
+      color: #e5e7eb;
+      direction: ltr;
+      text-align: left;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.6;
+      max-height: 240px;
+      overflow: auto;
+    }
+    .empty {
+      min-height: 280px;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: var(--muted);
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: 30px;
+    }
+
+    /* ---------- Login Layout ---------- */
+    .login-view {
+      min-height: calc(100vh - 64px);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+    }
+    .login-card {
+      width: min(100%, 430px);
+      padding: 24px;
+    }
+    .login-card h2 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+    }
+    .login-card p {
+      margin: 0 0 18px;
+      color: var(--muted);
+      line-height: 1.8;
+      font-size: 0.9rem;
+    }
+    .alert {
+      padding: 10px 12px;
+      border-radius: var(--radius);
+      background: color-mix(in srgb, var(--danger) 12%, transparent);
+      color: var(--danger);
+      margin-bottom: 12px;
+      font-size: 0.84rem;
+    }
+
+    /* ---------- Responsive Rules ---------- */
+    @media (max-width: 980px) {
+      .page { grid-template-columns: 1fr; }
+      .filters { position: static; }
+      .statusbar { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 620px) {
+      .topbar { align-items: flex-start; }
+      .brand small { display: none; }
+      .actions { gap: 6px; }
+      .btn-label { display: none; }
+      .quick-grid { grid-template-columns: 1fr; }
+      .statusbar { grid-template-columns: 1fr 1fr; }
+      .log-head { grid-template-columns: 1fr auto; }
+      .log-time, .log-file { grid-column: 1 / -1; }
+      .badge { min-width: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">SL</div>
+        <div>
+          <h1>Simple Log Viewer</h1>
+          <small>نمایش، جستجو و پایش زنده لاگ‌ها</small>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn icon-btn" id="themeBtn" title="Theme">◐</button>
+        <button class="btn" id="streamBtn" hidden><span>●</span><span class="btn-label">استریم</span></button>
+        <button class="btn btn-danger" id="logoutBtn" hidden><span>⇥</span><span class="btn-label">خروج</span></button>
+      </div>
+    </header>
+
+    <main id="loginView" class="login-view" hidden>
+      <form class="login-card" id="loginForm">
+        <h2>ورود امن</h2>
+        <p>نام کاربری، رمز عبور و کد شش رقمی TOTP را وارد کنید.</p>
+        <div class="alert" id="loginError" hidden></div>
+        <div class="field">
+          <label for="username">نام کاربری</label>
+          <input id="username" autocomplete="username" required/>
+        </div>
+        <div class="field">
+          <label for="password">رمز عبور</label>
+          <input id="password" type="password" autocomplete="current-password" required/>
+        </div>
+        <div class="field">
+          <label for="totp">کد TOTP</label>
+          <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required/>
+        </div>
+        <button class="btn btn-primary" type="submit" style="width:100%">ورود</button>
+      </form>
+    </main>
+
+    <main id="appView" class="page" hidden>
+      <aside class="panel filters">
+        <h2 class="panel-title">فیلترها <button class="btn icon-btn" id="refreshFilesBtn" title="Refresh">↻</button></h2>
+        <div class="field">
+          <label for="query">جستجو</label>
+          <input id="query" placeholder="متن، IP، مسیر، logger..."/>
+        </div>
+        <div class="quick-grid">
+          <button class="btn" data-minutes="5">۵ دقیقه</button>
+          <button class="btn" data-minutes="30">۳۰ دقیقه</button>
+          <button class="btn" data-minutes="120">۲ ساعت</button>
+        </div>
+        <div class="field">
+          <label for="recentMinutes">دقایق اخیر</label>
+          <input id="recentMinutes" type="number" min="1" max="10080" placeholder="مثلا 60"/>
+        </div>
+        <div class="field">
+          <label for="startJalali">شروع شمسی</label>
+          <input id="startJalali" placeholder="1405/02/13 16:30"/>
+        </div>
+        <div class="field">
+          <label for="endJalali">پایان شمسی</label>
+          <input id="endJalali" placeholder="1405/02/13 18:00"/>
+        </div>
+        <div class="field">
+          <label for="limit">تعداد نتیجه</label>
+          <input id="limit" type="number" min="1" max="500" value="200"/>
+        </div>
+        <div class="field">
+          <label>سطح لاگ</label>
+          <div class="chips" id="levelChips"></div>
+        </div>
+        <div class="field">
+          <label>فایل‌ها</label>
+          <div class="chips" style="margin-bottom:8px">
+            <button class="btn" id="selectAllFiles" type="button">همه</button>
+            <button class="btn" id="clearFiles" type="button">هیچکدام</button>
+          </div>
+          <div class="file-list" id="fileList"></div>
+        </div>
+        <button class="btn btn-primary" id="searchBtn" style="width:100%">جستجو</button>
+      </aside>
+
+      <section>
+        <div class="statusbar">
+          <div class="stat"><strong id="returnedStat">0</strong><span>نمایش داده شده</span></div>
+          <div class="stat"><strong id="matchedStat">0</strong><span>نتیجه مطابق</span></div>
+          <div class="stat"><strong id="scannedStat">0</strong><span>خط بررسی شده</span></div>
+          <div class="stat"><strong id="filesStat">0</strong><span>فایل فعال</span></div>
+        </div>
+        <div class="results" id="results">
+          <div class="empty">برای شروع فایل‌ها را انتخاب کنید و جستجو بزنید.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    /* ---------- State Values ---------- */
+    const state = {
+      files: [],
+      stream: null,
+      streaming: false,
+      debounce: null,
+    };
+    const levels = ["ERROR", "WARNING", "INFO", "DEBUG", "TEXT"];
+    const els = {
+      loginView: document.getElementById("loginView"),
+      appView: document.getElementById("appView"),
+      loginForm: document.getElementById("loginForm"),
+      loginError: document.getElementById("loginError"),
+      logoutBtn: document.getElementById("logoutBtn"),
+      streamBtn: document.getElementById("streamBtn"),
+      themeBtn: document.getElementById("themeBtn"),
+      refreshFilesBtn: document.getElementById("refreshFilesBtn"),
+      fileList: document.getElementById("fileList"),
+      levelChips: document.getElementById("levelChips"),
+      searchBtn: document.getElementById("searchBtn"),
+      selectAllFiles: document.getElementById("selectAllFiles"),
+      clearFiles: document.getElementById("clearFiles"),
+      results: document.getElementById("results"),
+      query: document.getElementById("query"),
+      recentMinutes: document.getElementById("recentMinutes"),
+      startJalali: document.getElementById("startJalali"),
+      endJalali: document.getElementById("endJalali"),
+      limit: document.getElementById("limit"),
+      returnedStat: document.getElementById("returnedStat"),
+      matchedStat: document.getElementById("matchedStat"),
+      scannedStat: document.getElementById("scannedStat"),
+      filesStat: document.getElementById("filesStat"),
+    };
+
+    /* ---------- Api Helpers ---------- */
+    async function api(path, options = {}) {
+      const response = await fetch(path, {
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+        ...options,
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ detail: "Request failed" }));
+        throw new Error(error.detail || "Request failed");
+      }
+      return response.json();
+    }
+
+    function selectedFiles() {
+      return [...document.querySelectorAll(".file-check:checked")].map((item) => item.value);
+    }
+
+    function selectedLevels() {
+      return [...document.querySelectorAll(".level-check:checked")].map((item) => item.value);
+    }
+
+    function payload() {
+      return {
+        files: selectedFiles(),
+        query: els.query.value.trim(),
+        levels: selectedLevels(),
+        start_jalali: els.startJalali.value.trim(),
+        end_jalali: els.endJalali.value.trim(),
+        recent_minutes: els.recentMinutes.value ? Number(els.recentMinutes.value) : null,
+        limit: Number(els.limit.value || 200),
+      };
+    }
+
+    /* ---------- Render Helpers ---------- */
+    function escapeHtml(value) {
+      return String(value ?? "").replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;",
+      })[char]);
+    }
+
+    function levelClass(level) {
+      return `level-${String(level || "TEXT").toLowerCase()}`;
+    }
+
+    function renderStats(stats) {
+      els.returnedStat.textContent = stats.returned ?? 0;
+      els.matchedStat.textContent = stats.matched ?? 0;
+      els.scannedStat.textContent = stats.scanned ?? 0;
+      els.filesStat.textContent = stats.files ?? 0;
+    }
+
+    function renderLogs(items) {
+      if (!items.length) {
+        els.results.innerHTML = `<div class="empty">نتیجه‌ای برای این فیلتر پیدا نشد.</div>`;
+        return;
+      }
+      els.results.innerHTML = items.map((item) => `
+        <article class="log-row">
+          <div class="log-head">
+            <span class="badge ${levelClass(item.level)}">${escapeHtml(item.level)}</span>
+            <span class="log-time">${escapeHtml(item.jalali || item.timestamp || "-")}</span>
+            <span class="log-file" title="${escapeHtml(item.file)}">${escapeHtml(item.file)}</span>
+            <span class="log-line">#${escapeHtml(item.line)}</span>
+          </div>
+          <div class="log-body">
+            <details>
+              <summary>Raw</summary>
+              <pre>${escapeHtml(item.raw)}</pre>
+            </details>
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderFiles(files) {
+      state.files = files;
+      if (!files.length) {
+        els.fileList.innerHTML = `<div class="empty" style="min-height:120px">فایلی در data پیدا نشد.</div>`;
+        return;
+      }
+      els.fileList.innerHTML = files.map((file) => `
+        <label class="file-item">
+          <input class="file-check" type="checkbox" value="${escapeHtml(file.key)}" checked/>
+          <span>${escapeHtml(file.key)}<small>${escapeHtml(file.modified_jalali)} · ${Math.ceil(file.size / 1024)} KB</small></span>
+        </label>
+      `).join("");
+    }
+
+    function renderLevels() {
+      els.levelChips.innerHTML = levels.map((level) => `
+        <label class="chip">
+          <input class="level-check" type="checkbox" value="${level}"/>
+          <span>${level}</span>
+        </label>
+      `).join("");
+    }
+
+    /* ---------- Search Flow ---------- */
+    async function loadFiles() {
+      const data = await api("/api/files");
+      renderFiles(data.files);
+    }
+
+    async function search() {
+      stopStream();
+      const data = await api("/api/logs", { method: "POST", body: JSON.stringify(payload()) });
+      renderStats(data.stats);
+      renderLogs(data.items);
+    }
+
+    function streamUrl() {
+      const params = new URLSearchParams();
+      const body = payload();
+      body.files.forEach((file) => params.append("files", file));
+      body.levels.forEach((level) => params.append("levels", level));
+      if (body.query) params.set("query", body.query);
+      if (body.start_jalali) params.set("start_jalali", body.start_jalali);
+      if (body.end_jalali) params.set("end_jalali", body.end_jalali);
+      if (body.recent_minutes) params.set("recent_minutes", body.recent_minutes);
+      params.set("limit", body.limit);
+      return `/api/stream?${params.toString()}`;
+    }
+
+    function startStream() {
+      stopStream(false);
+      state.stream = new EventSource(streamUrl(), { withCredentials: true });
+      state.streaming = true;
+      els.streamBtn.classList.add("btn-primary");
+      state.stream.addEventListener("logs", (event) => {
+        const data = JSON.parse(event.data);
+        renderStats(data.stats);
+        renderLogs(data.items);
+      });
+      state.stream.onerror = () => stopStream();
+    }
+
+    function stopStream(updateButton = true) {
+      if (state.stream) state.stream.close();
+      state.stream = null;
+      state.streaming = false;
+      if (updateButton) els.streamBtn.classList.remove("btn-primary");
+    }
+
+    /* ---------- Auth Flow ---------- */
+    async function showApp() {
+      els.loginView.hidden = true;
+      els.appView.hidden = false;
+      els.logoutBtn.hidden = false;
+      els.streamBtn.hidden = false;
+      renderLevels();
+      await loadFiles();
+      await search();
+    }
+
+    function showLogin() {
+      els.loginView.hidden = false;
+      els.appView.hidden = true;
+      els.logoutBtn.hidden = true;
+      els.streamBtn.hidden = true;
+    }
+
+    async function boot() {
+      document.body.dataset.theme = localStorage.getItem("theme") || "light";
+      try {
+        await api("/api/me");
+        await showApp();
+      } catch {
+        showLogin();
+      }
+    }
+
+    /* ---------- Event Bindings ---------- */
+    els.loginForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      els.loginError.hidden = true;
+      try {
+        await api("/api/login", {
+          method: "POST",
+          body: JSON.stringify({
+            username: document.getElementById("username").value,
+            password: document.getElementById("password").value,
+            totp: document.getElementById("totp").value,
+          }),
+        });
+        await showApp();
+      } catch (error) {
+        els.loginError.textContent = error.message;
+        els.loginError.hidden = false;
+      }
+    });
+
+    els.logoutBtn.addEventListener("click", async () => {
+      stopStream();
+      await api("/api/logout", { method: "POST" }).catch(() => null);
+      showLogin();
+    });
+    els.themeBtn.addEventListener("click", () => {
+      const next = document.body.dataset.theme === "dark" ? "light" : "dark";
+      document.body.dataset.theme = next;
+      localStorage.setItem("theme", next);
+    });
+    els.searchBtn.addEventListener("click", search);
+    els.refreshFilesBtn.addEventListener("click", loadFiles);
+    els.streamBtn.addEventListener("click", () => state.streaming ? stopStream() : startStream());
+    els.selectAllFiles.addEventListener("click", () => document.querySelectorAll(".file-check").forEach((item) => item.checked = true));
+    els.clearFiles.addEventListener("click", () => document.querySelectorAll(".file-check").forEach((item) => item.checked = false));
+    document.querySelectorAll("[data-minutes]").forEach((button) => {
+      button.addEventListener("click", () => {
+        els.recentMinutes.value = button.dataset.minutes;
+        els.startJalali.value = "";
+        els.endJalali.value = "";
+      });
+    });
+    [els.query, els.recentMinutes, els.startJalali, els.endJalali].forEach((input) => {
+      input.addEventListener("input", () => {
+        clearTimeout(state.debounce);
+        state.debounce = setTimeout(() => {
+          if (!els.appView.hidden && !state.streaming) search().catch(() => null);
+        }, 450);
+      });
+    });
+
+    boot();
+  </script>
+</body>
+</html>
