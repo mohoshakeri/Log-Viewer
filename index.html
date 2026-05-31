@@ -627,7 +627,7 @@
           <div class="stat"><strong id="filesStat">0</strong><span>فایل فعال</span></div>
         </div>
         <div class="results" id="results">
-          <div class="empty">برای شروع فایل‌ها را انتخاب کنید و جستجو بزنید.</div>
+          <div class="empty">برای شروع، حداقل یک فایل را انتخاب کنید و جستجو بزنید.</div>
         </div>
       </section>
     </main>
@@ -811,7 +811,7 @@
       }
       els.fileList.innerHTML = files.map((file) => `
         <label class="file-item">
-          <input class="file-check" type="checkbox" value="${escapeHtml(file.key)}" checked/>
+          <input class="file-check" type="checkbox" value="${escapeHtml(file.key)}"/>
           <span>${escapeHtml(file.key)}<small>${escapeHtml(file.modified_jalali)} · ${Math.ceil(file.size / 1024)} KB</small></span>
         </label>
       `).join("");
@@ -1000,6 +1000,11 @@
 
     async function search() {
       stopStream();
+      if (!selectedFiles().length) {
+        renderStats({ returned: 0, matched: 0, scanned: 0, files: 0 });
+        els.results.innerHTML = `<div class="empty">حداقل یک فایل را انتخاب کنید.</div>`;
+        return;
+      }
       const requestId = ++state.searchRequestId;
       setButtonLoading(els.searchBtn, true, "در حال جستجو...");
       renderLoading(els.results, "در حال جستجو در لاگ‌ها...", 280);
@@ -1035,6 +1040,11 @@
 
     function startStream() {
       stopStream(false);
+      if (!selectedFiles().length) {
+        renderStats({ returned: 0, matched: 0, scanned: 0, files: 0 });
+        els.results.innerHTML = `<div class="empty">برای استریم، حداقل یک فایل را انتخاب کنید.</div>`;
+        return;
+      }
       renderLoading(els.results, "در حال اتصال به استریم لاگ‌ها...", 280);
       state.stream = new EventSource(streamUrl(), { withCredentials: true });
       state.streaming = true;
@@ -1065,7 +1075,8 @@
       els.streamBtn.hidden = false;
       renderLevels();
       await loadFiles();
-      await search();
+      renderStats({ returned: 0, matched: 0, scanned: 0, files: 0 });
+      els.results.innerHTML = `<div class="empty">برای شروع، حداقل یک فایل را انتخاب کنید و جستجو بزنید.</div>`;
     }
 
     function showLogin() {
