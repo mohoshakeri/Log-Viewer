@@ -255,6 +255,21 @@
       white-space: nowrap;
     }
     .btn:hover { transform: translateY(-1px); border-color: color-mix(in srgb, var(--accent) 42%, var(--border)); }
+    .btn:disabled, input:disabled, select:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+    .btn[aria-busy="true"]::before,
+    .loading-spinner {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      animation: spin 0.75s linear infinite;
+      flex: 0 0 auto;
+    }
     .btn-primary { background: var(--accent); border-color: var(--accent); color: #ffffff; }
     .btn-danger { color: var(--danger); }
     .icon-btn { width: 38px; padding: 0; }
@@ -427,6 +442,33 @@
       border-radius: var(--radius);
       padding: 30px;
     }
+    .empty.is-loading {
+      gap: 10px;
+      align-content: center;
+    }
+    .loading-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 80;
+      display: grid;
+      place-items: center;
+      background: color-mix(in srgb, var(--bg) 68%, transparent);
+      backdrop-filter: blur(6px);
+    }
+    .loading-box {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 12px 16px;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      color: var(--text);
+      font-weight: 800;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ---------- Login Layout ---------- */
     .login-view {
@@ -478,6 +520,10 @@
   </style>
 </head>
 <body>
+  <div class="loading-overlay" id="globalLoading" hidden>
+    <div class="loading-box"><span class="loading-spinner"></span><span id="globalLoadingText">در حال بارگذاری...</span></div>
+  </div>
+
   <div class="shell">
     <header class="topbar">
       <div class="brand">
@@ -512,7 +558,7 @@
           <label for="totp">کد TOTP</label>
           <input id="totp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required/>
         </div>
-        <button class="btn btn-primary" type="submit" style="width:100%">ورود</button>
+        <button class="btn btn-primary" id="loginBtn" type="submit" style="width:100%">ورود</button>
       </form>
     </main>
 
@@ -597,6 +643,8 @@
       picker: null,
       pickerTarget: null,
       pickerDate: null,
+      pendingRequests: 0,
+      searchRequestId: 0,
     };
     const levels = ["ERROR", "WARNING", "INFO", "DEBUG", "TEXT"];
     const els = {
@@ -606,7 +654,10 @@
       brandMark: document.getElementById("brandMark"),
       dynamicFavicon: document.getElementById("dynamicFavicon"),
       loginForm: document.getElementById("loginForm"),
+      loginBtn: document.getElementById("loginBtn"),
       loginError: document.getElementById("loginError"),
+      globalLoading: document.getElementById("globalLoading"),
+      globalLoadingText: document.getElementById("globalLoadingText"),
       logoutBtn: document.getElementById("logoutBtn"),
       streamBtn: document.getElementById("streamBtn"),
       themeBtn: document.getElementById("themeBtn"),
@@ -666,6 +717,35 @@
         recent_minutes: els.recentMinutes.value ? Number(els.recentMinutes.value) : null,
         limit: Number(els.limit.value || 200),
       };
+    }
+
+    /* ---------- Loading Helpers ---------- */
+    function setGlobalLoading(active, text = "در حال بارگذاری...") {
+      state.pendingRequests += active ? 1 : -1;
+      state.pendingRequests = Math.max(0, state.pendingRequests);
+      els.globalLoadingText.textContent = text;
+      els.globalLoading.hidden = state.pendingRequests === 0;
+    }
+
+    function setButtonLoading(button, active, text) {
+      if (!button) return;
+      if (!button.dataset.defaultText) button.dataset.defaultText = button.innerHTML;
+      button.disabled = active;
+      button.setAttribute("aria-busy", String(active));
+      button.innerHTML = active && text ? text : button.dataset.defaultText;
+    }
+
+    function renderLoading(target, message, minHeight = 120) {
+      target.innerHTML = `<div class="empty is-loading" style="min-height:${minHeight}px"><span class="loading-spinner"></span><span>${message}</span></div>`;
+    }
+
+    async function withGlobalLoading(text, task) {
+      setGlobalLoading(true, text);
+      try {
+        return await task();
+      } finally {
+        setGlobalLoading(false, text);
+      }
     }
 
     /* ---------- Render Helpers ---------- */
@@ -905,15 +985,37 @@
 
     /* ---------- Search Flow ---------- */
     async function loadFiles() {
-      const data = await api("/api/files");
-      renderFiles(data.files);
+      setButtonLoading(els.refreshFilesBtn, true, "");
+      renderLoading(els.fileList, "در حال دریافت فهرست فایل‌ها...");
+      try {
+        const data = await api("/api/files");
+        renderFiles(data.files);
+      } catch (error) {
+        els.fileList.innerHTML = `<div class="empty" style="min-height:120px">${escapeHtml(error.message)}</div>`;
+        throw error;
+      } finally {
+        setButtonLoading(els.refreshFilesBtn, false);
+      }
     }
 
     async function search() {
       stopStream();
-      const data = await api("/api/logs", { method: "POST", body: JSON.stringify(payload()) });
-      renderStats(data.stats);
-      renderLogs(data.items);
+      const requestId = ++state.searchRequestId;
+      setButtonLoading(els.searchBtn, true, "در حال جستجو...");
+      renderLoading(els.results, "در حال جستجو در لاگ‌ها...", 280);
+      try {
+        const data = await api("/api/logs", { method: "POST", body: JSON.stringify(payload()) });
+        if (requestId !== state.searchRequestId) return;
+        renderStats(data.stats);
+        renderLogs(data.items);
+      } catch (error) {
+        if (requestId === state.searchRequestId) {
+          els.results.innerHTML = `<div class="empty">${escapeHtml(error.message)}</div>`;
+        }
+        throw error;
+      } finally {
+        if (requestId === state.searchRequestId) setButtonLoading(els.searchBtn, false);
+      }
     }
 
     function streamUrl() {
@@ -933,10 +1035,13 @@
 
     function startStream() {
       stopStream(false);
+      renderLoading(els.results, "در حال اتصال به استریم لاگ‌ها...", 280);
       state.stream = new EventSource(streamUrl(), { withCredentials: true });
       state.streaming = true;
       els.streamBtn.classList.add("btn-primary");
+      els.streamBtn.setAttribute("aria-busy", "true");
       state.stream.addEventListener("logs", (event) => {
+        els.streamBtn.setAttribute("aria-busy", "false");
         const data = JSON.parse(event.data);
         renderStats(data.stats);
         renderLogs(data.items);
@@ -949,6 +1054,7 @@
       state.stream = null;
       state.streaming = false;
       if (updateButton) els.streamBtn.classList.remove("btn-primary");
+      els.streamBtn.setAttribute("aria-busy", "false");
     }
 
     /* ---------- Auth Flow ---------- */
@@ -971,6 +1077,7 @@
 
     async function boot() {
       document.body.dataset.theme = localStorage.getItem("theme") || "light";
+      setGlobalLoading(true, "در حال آماده‌سازی برنامه...");
       const config = await api("/api/config").catch(() => ({}));
       if (config.logo_url) {
         els.brandLogo.src = config.logo_url;
@@ -982,9 +1089,15 @@
       }
       try {
         await api("/api/me");
-        await showApp();
       } catch {
         showLogin();
+        setGlobalLoading(false, "در حال آماده‌سازی برنامه...");
+        return;
+      }
+      try {
+        await showApp();
+      } finally {
+        setGlobalLoading(false, "در حال آماده‌سازی برنامه...");
       }
     }
 
@@ -992,25 +1105,30 @@
     els.loginForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       els.loginError.hidden = true;
+      setButtonLoading(els.loginBtn, true, "در حال ورود...");
       try {
-        await api("/api/login", {
+        await withGlobalLoading("در حال ورود...", () => api("/api/login", {
           method: "POST",
           body: JSON.stringify({
             username: document.getElementById("username").value,
             password: document.getElementById("password").value,
             totp: document.getElementById("totp").value,
           }),
-        });
+        }));
         await showApp();
       } catch (error) {
         els.loginError.textContent = error.message;
         els.loginError.hidden = false;
+      } finally {
+        setButtonLoading(els.loginBtn, false);
       }
     });
 
     els.logoutBtn.addEventListener("click", async () => {
       stopStream();
-      await api("/api/logout", { method: "POST" }).catch(() => null);
+      setButtonLoading(els.logoutBtn, true, "در حال خروج...");
+      await withGlobalLoading("در حال خروج...", () => api("/api/logout", { method: "POST" })).catch(() => null);
+      setButtonLoading(els.logoutBtn, false);
       showLogin();
     });
     els.themeBtn.addEventListener("click", () => {
@@ -1018,8 +1136,8 @@
       document.body.dataset.theme = next;
       localStorage.setItem("theme", next);
     });
-    els.searchBtn.addEventListener("click", search);
-    els.refreshFilesBtn.addEventListener("click", loadFiles);
+    els.searchBtn.addEventListener("click", () => search().catch(() => null));
+    els.refreshFilesBtn.addEventListener("click", () => loadFiles().catch(() => null));
     els.streamBtn.addEventListener("click", () => state.streaming ? stopStream() : startStream());
     els.selectAllFiles.addEventListener("click", () => document.querySelectorAll(".file-check").forEach((item) => item.checked = true));
     els.clearFiles.addEventListener("click", () => document.querySelectorAll(".file-check").forEach((item) => item.checked = false));
