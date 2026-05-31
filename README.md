@@ -58,6 +58,28 @@ Then open:
 http://localhost:8989
 ```
 
+
+## Docker
+
+Build and run on port 80:
+
+```bash
+docker build -t simple-log-viewer .
+docker run --env-file .env -p 80:80 -v $(pwd)/data:/app/data simple-log-viewer
+```
+
+Then open:
+
+```text
+http://localhost
+```
+
+## Tests
+
+```bash
+python3 -m unittest test_app.py
+```
+
 ## Configuration
 
 | Variable | Default | Description |
