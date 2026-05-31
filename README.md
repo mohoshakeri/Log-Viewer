@@ -39,6 +39,8 @@ LOG_VIEWER_FAVICON_URL=https://example.com/favicon.ico
 
 `LOG_VIEWER_TOTP_SECRET` must be a Base32 secret compatible with authenticator apps.
 
+For slow development proxies, increase `LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS` and `LOG_VIEWER_SERVER_KEEP_ALIVE_SECONDS`.
+
 For production behind HTTPS, also set:
 
 ```env
@@ -95,6 +97,9 @@ python3 -m unittest test_app.py
 | `LOG_VIEWER_SESSION_TTL_SECONDS` | `28800` | Session lifetime. |
 | `LOG_VIEWER_LOGO_URL` | empty | Optional logo URL shown in the header. |
 | `LOG_VIEWER_FAVICON_URL` | empty | Optional favicon URL used by the page. |
+| `LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS` | `180` | Browser fetch timeout for API requests. Increase in slow development environments. |
+| `LOG_VIEWER_SERVER_KEEP_ALIVE_SECONDS` | `120` | Uvicorn keep-alive timeout used by `python main.py` and Docker. |
+| `LOG_VIEWER_STREAM_INTERVAL_SECONDS` | `5` | Delay between server-sent event refresh cycles. |
 | `LOG_VIEWER_MAX_RESULTS` | `500` | Maximum returned results per query. |
 | `LOG_VIEWER_MAX_SCAN_LINES` | `12000` | Recent lines scanned per file. |
 | `LOG_VIEWER_CONTEXT_LINES` | `30` | Lines shown before and after a selected log in the context modal. |

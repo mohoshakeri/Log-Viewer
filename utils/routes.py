@@ -7,7 +7,14 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
-from utils.config import FAVICON_URL, LOGO_URL, MAX_RESULTS, PROJECT_ROOT, STREAM_INTERVAL_SECONDS
+from utils.config import (
+    CLIENT_API_TIMEOUT_SECONDS,
+    FAVICON_URL,
+    LOGO_URL,
+    MAX_RESULTS,
+    PROJECT_ROOT,
+    STREAM_INTERVAL_SECONDS,
+)
 from utils.jalali import parse_jalali_datetime
 from utils.logs import list_log_files, read_log_context, search_logs, serialize_entry, serialize_file
 from utils.security import clear_session_cookie, create_session, require_user, set_session_cookie, validate_login
@@ -56,7 +63,14 @@ async def health() -> JSONResponse:
 
 @router.get("/api/config")
 async def config() -> JSONResponse:
-    return JSONResponse({"logo_url": LOGO_URL, "favicon_url": FAVICON_URL})
+    return JSONResponse(
+        {
+            "logo_url": LOGO_URL,
+            "favicon_url": FAVICON_URL,
+            "client_api_timeout_seconds": CLIENT_API_TIMEOUT_SECONDS,
+            "stream_interval_seconds": STREAM_INTERVAL_SECONDS,
+        }
+    )
 
 
 # ---------- Auth Routes ----------

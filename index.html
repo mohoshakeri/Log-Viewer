@@ -732,6 +732,7 @@
       pickerDate: null,
       pendingRequests: 0,
       searchRequestId: 0,
+      apiTimeoutSeconds: 180,
     };
     const levels = ["ERROR", "WARNING", "INFO", "DEBUG", "TEXT"];
     const els = {
@@ -776,16 +777,29 @@
 
     /* ---------- Api Helpers ---------- */
     async function api(path, options = {}) {
-      const response = await fetch(path, {
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-        ...options,
-      });
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ detail: "Request failed" }));
-        throw new Error(error.detail || "Request failed");
+      const timeoutMs = Math.max(1000, Number(state.apiTimeoutSeconds || 180) * 1000);
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(path, {
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+          ...options,
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: "Request failed" }));
+          throw new Error(error.detail || "Request failed");
+        }
+        return response.json();
+      } catch (error) {
+        if (error.name === "AbortError") {
+          throw new Error(`مهلت انتظار درخواست تمام شد. مقدار LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS را افزایش دهید.`);
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeoutId);
       }
-      return response.json();
     }
 
     function selectedFiles() {
@@ -1214,6 +1228,9 @@
       document.body.dataset.theme = localStorage.getItem("theme") || "light";
       setGlobalLoading(true, "در حال آماده‌سازی برنامه...");
       const config = await api("/api/config").catch(() => ({}));
+      if (config.client_api_timeout_seconds) {
+        state.apiTimeoutSeconds = Number(config.client_api_timeout_seconds);
+      }
       if (config.logo_url) {
         els.brandLogo.src = config.logo_url;
         els.brandLogo.hidden = false;

@@ -23,6 +23,8 @@ BASE_URL: str = os.getenv("BASE_URL", "http://localhost:{}".format(PORT)).rstrip
 CORS_ALLOWEDS: list[str] = [item.strip() for item in os.getenv("CORS_ALLOWEDS", "").split(",") if item.strip()]
 LOGO_URL: str = os.getenv("LOG_VIEWER_LOGO_URL", "").strip()
 FAVICON_URL: str = os.getenv("LOG_VIEWER_FAVICON_URL", "").strip()
+CLIENT_API_TIMEOUT_SECONDS: int = int(os.getenv("LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS", "180"))
+SERVER_KEEP_ALIVE_SECONDS: int = int(os.getenv("LOG_VIEWER_SERVER_KEEP_ALIVE_SECONDS", "120"))
 
 if not CORS_ALLOWEDS:
     cors_defaults: set[str] = {
@@ -46,4 +48,4 @@ MAX_RESULTS: int = int(os.getenv("LOG_VIEWER_MAX_RESULTS", "500"))
 MAX_SCAN_LINES: int = int(os.getenv("LOG_VIEWER_MAX_SCAN_LINES", "12000"))
 MAX_LINE_LENGTH: int = int(os.getenv("LOG_VIEWER_MAX_LINE_LENGTH", "20000"))
 LOG_CONTEXT_LINES: int = int(os.getenv("LOG_VIEWER_CONTEXT_LINES", "30"))
-STREAM_INTERVAL_SECONDS: int = 5
+STREAM_INTERVAL_SECONDS: int = int(os.getenv("LOG_VIEWER_STREAM_INTERVAL_SECONDS", "5"))
