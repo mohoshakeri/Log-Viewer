@@ -97,6 +97,7 @@ python3 -m unittest test_app.py
 | `LOG_VIEWER_FAVICON_URL` | empty | Optional favicon URL used by the page. |
 | `LOG_VIEWER_MAX_RESULTS` | `500` | Maximum returned results per query. |
 | `LOG_VIEWER_MAX_SCAN_LINES` | `12000` | Recent lines scanned per file. |
+| `LOG_VIEWER_CONTEXT_LINES` | `30` | Lines shown before and after a selected log in the context modal. |
 
 ## API
 
@@ -105,10 +106,7 @@ python3 -m unittest test_app.py
 - `GET /api/me`
 - `GET /api/files`
 - `POST /api/logs`
+- `GET /api/log-context`
 - `GET /api/stream`
 
 All log APIs require the authenticated session cookie.
-
-## Notes
-
-The viewer scans the most recent `LOG_VIEWER_MAX_SCAN_LINES` lines per selected file to stay responsive on large logs. Increase that value only if the server has enough CPU and memory for wider searches.

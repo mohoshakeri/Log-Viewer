@@ -357,6 +357,10 @@
       background: var(--surface);
       border-radius: var(--radius);
       overflow: hidden;
+      cursor: pointer;
+    }
+    .log-row:hover {
+      border-color: color-mix(in srgb, var(--accent) 42%, var(--border));
     }
     .log-head {
       display: grid;
@@ -470,6 +474,79 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ---------- Modal Layout ---------- */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 70;
+      display: grid;
+      place-items: center;
+      padding: 18px;
+      background: rgba(0, 0, 0, 0.42);
+    }
+    .modal {
+      width: min(100%, 980px);
+      max-height: min(760px, calc(100vh - 36px));
+      display: grid;
+      grid-template-rows: auto 1fr;
+      border-radius: var(--radius);
+      border: 1px solid var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+    .modal-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface-2);
+    }
+    .modal-title {
+      min-width: 0;
+      margin: 0;
+      direction: ltr;
+      text-align: left;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.92rem;
+    }
+    .modal-body {
+      min-height: 260px;
+      overflow: auto;
+      background: #0b1020;
+    }
+    .context-lines {
+      margin: 0;
+      padding: 10px 0;
+      color: #e5e7eb;
+      direction: ltr;
+      text-align: left;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.78rem;
+      line-height: 1.65;
+    }
+    .context-line {
+      display: grid;
+      grid-template-columns: 74px minmax(0, 1fr);
+      gap: 12px;
+      padding: 1px 14px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+    .context-line-number {
+      color: #94a3b8;
+      text-align: right;
+      user-select: none;
+    }
+    .context-line.is-target {
+      background: color-mix(in srgb, var(--accent) 32%, transparent);
+      color: #ffffff;
+    }
+
     /* ---------- Login Layout ---------- */
     .login-view {
       min-height: calc(100vh - 64px);
@@ -522,6 +599,16 @@
 <body>
   <div class="loading-overlay" id="globalLoading" hidden>
     <div class="loading-box"><span class="loading-spinner"></span><span id="globalLoadingText">در حال بارگذاری...</span></div>
+  </div>
+
+  <div class="modal-backdrop" id="logContextModal" hidden>
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="logContextTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="logContextTitle">Log Context</h2>
+        <button class="btn icon-btn" id="closeLogContextBtn" type="button" title="Close">×</button>
+      </div>
+      <div class="modal-body" id="logContextBody"></div>
+    </section>
   </div>
 
   <div class="shell">
@@ -658,6 +745,10 @@
       loginError: document.getElementById("loginError"),
       globalLoading: document.getElementById("globalLoading"),
       globalLoadingText: document.getElementById("globalLoadingText"),
+      logContextModal: document.getElementById("logContextModal"),
+      logContextTitle: document.getElementById("logContextTitle"),
+      logContextBody: document.getElementById("logContextBody"),
+      closeLogContextBtn: document.getElementById("closeLogContextBtn"),
       logoutBtn: document.getElementById("logoutBtn"),
       streamBtn: document.getElementById("streamBtn"),
       themeBtn: document.getElementById("themeBtn"),
@@ -786,7 +877,7 @@
         return;
       }
       els.results.innerHTML = items.map((item) => `
-        <article class="log-row">
+        <article class="log-row" data-file="${escapeHtml(item.file)}" data-line="${escapeHtml(item.line)}" tabindex="0" role="button">
           <div class="log-head">
             <span class="badge ${levelClass(item.level)}">${escapeHtml(item.level)}</span>
             <span class="log-time">${escapeHtml(item.jalali || "-")} · ${escapeHtml(item.timestamp || "-")}</span>
@@ -801,6 +892,39 @@
           </div>
         </article>
       `).join("");
+    }
+
+    function renderContextLines(lines) {
+      const renderedLines = lines.map((item) => {
+        const targetClass = item.target ? " is-target" : "";
+        return `<span class="context-line${targetClass}" id="contextLine${item.line}"><span class="context-line-number">${item.line}</span><span>${escapeHtml(item.raw)}</span></span>`;
+      }).join("");
+      return `<pre class="context-lines">${renderedLines}</pre>`;
+    }
+
+    function scrollTargetContextLine(line) {
+      const target = document.getElementById(`contextLine${line}`);
+      if (target) target.scrollIntoView({ block: "center" });
+    }
+
+    async function openLogContext(file, line) {
+      const params = new URLSearchParams({ file, line });
+      els.logContextTitle.textContent = `${file} #${line}`;
+      els.logContextBody.innerHTML = `<div class="empty is-loading" style="min-height:260px"><span class="loading-spinner"></span><span>در حال دریافت context لاگ...</span></div>`;
+      els.logContextModal.hidden = false;
+      try {
+        const data = await api(`/api/log-context?${params.toString()}`);
+        els.logContextTitle.textContent = `${data.file} #${data.line} · ${data.start_line}-${data.end_line}`;
+        els.logContextBody.innerHTML = renderContextLines(data.lines);
+        scrollTargetContextLine(data.line);
+      } catch (error) {
+        els.logContextBody.innerHTML = `<div class="empty" style="min-height:260px">${escapeHtml(error.message)}</div>`;
+      }
+    }
+
+    function closeLogContext() {
+      els.logContextModal.hidden = true;
+      els.logContextBody.innerHTML = "";
     }
 
     function renderFiles(files) {
@@ -1133,6 +1257,27 @@
       } finally {
         setButtonLoading(els.loginBtn, false);
       }
+    });
+
+    els.results.addEventListener("click", (event) => {
+      if (event.target.closest("details")) return;
+      const row = event.target.closest(".log-row");
+      if (!row) return;
+      openLogContext(row.dataset.file, row.dataset.line);
+    });
+    els.results.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const row = event.target.closest(".log-row");
+      if (!row) return;
+      event.preventDefault();
+      openLogContext(row.dataset.file, row.dataset.line);
+    });
+    els.closeLogContextBtn.addEventListener("click", closeLogContext);
+    els.logContextModal.addEventListener("click", (event) => {
+      if (event.target === els.logContextModal) closeLogContext();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !els.logContextModal.hidden) closeLogContext();
     });
 
     els.logoutBtn.addEventListener("click", async () => {

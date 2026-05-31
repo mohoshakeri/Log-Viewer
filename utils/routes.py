@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 
 from utils.config import FAVICON_URL, LOGO_URL, MAX_RESULTS, PROJECT_ROOT, STREAM_INTERVAL_SECONDS
 from utils.jalali import parse_jalali_datetime
-from utils.logs import list_log_files, search_logs, serialize_entry, serialize_file
+from utils.logs import list_log_files, read_log_context, search_logs, serialize_entry, serialize_file
 from utils.security import clear_session_cookie, create_session, require_user, set_session_cookie, validate_login
 
 
@@ -105,6 +105,19 @@ async def logs(payload: SearchPayload, username: str = Depends(require_user)) ->
         limit=payload.limit,
     )
     return JSONResponse({"items": [serialize_entry(item) for item in entries], "stats": stats})
+
+
+@router.get("/api/log-context")
+async def log_context(
+    file: str = Query(min_length=1, max_length=500),
+    line: int = Query(ge=1),
+    username: str = Depends(require_user),
+) -> JSONResponse:
+    del username
+    try:
+        return JSONResponse(read_log_context(file, line))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Log file not found.") from exc
 
 
 @router.get("/api/stream")

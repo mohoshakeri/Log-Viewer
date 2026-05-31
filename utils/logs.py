@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from utils.config import DATA_DIR, MAX_LINE_LENGTH, MAX_RESULTS, MAX_SCAN_LINES
+from utils.config import DATA_DIR, LOG_CONTEXT_LINES, MAX_LINE_LENGTH, MAX_RESULTS, MAX_SCAN_LINES
 from utils.jalali import format_jalali
 
 
@@ -143,8 +143,24 @@ def parse_line(file_key: str, line_number: int, raw: str) -> LogEntry:
     )
 
 
+def count_file_lines(path: Path) -> int:
+    line_count = 0
+    last_byte = b""
+    with path.open("rb") as handle:
+        while True:
+            chunk = handle.read(64 * 1024)
+            if not chunk:
+                break
+            line_count += chunk.count(b"\n")
+            last_byte = chunk[-1:]
+    if path.stat().st_size and last_byte != b"\n":
+        line_count += 1
+    return line_count
+
+
 def iter_recent_lines(path: Path, max_lines: int) -> Iterable[tuple[int, str]]:
     chunk_size = 64 * 1024
+    total_lines = count_file_lines(path)
     data = bytearray()
     newline_count = 0
     with path.open("rb") as handle:
@@ -160,8 +176,43 @@ def iter_recent_lines(path: Path, max_lines: int) -> Iterable[tuple[int, str]]:
 
     decoded = bytes(data).decode("utf-8", errors="replace").splitlines()
     lines = decoded[-max_lines:]
-    for index, line in enumerate(lines, start=1):
+    start_line = max(1, total_lines - len(lines) + 1)
+    for index, line in enumerate(lines, start=start_line):
         yield index, line
+
+
+def read_log_context(file_key: str, line_number: int, context_lines: int = LOG_CONTEXT_LINES) -> dict[str, Any]:
+    path = resolve_log_file(file_key)
+    total_lines = count_file_lines(path)
+    target_line = max(1, min(line_number, total_lines))
+    before = max(0, context_lines)
+    start_line = max(1, target_line - before)
+    end_line = min(total_lines, target_line + before)
+    lines: list[dict[str, Any]] = []
+
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        for current_line, raw in enumerate(handle, start=1):
+            if current_line < start_line:
+                continue
+            if current_line > end_line:
+                break
+            lines.append(
+                {
+                    "line": current_line,
+                    "raw": raw.rstrip("\n")[:MAX_LINE_LENGTH],
+                    "target": current_line == target_line,
+                }
+            )
+
+    return {
+        "file": file_key,
+        "line": target_line,
+        "context": before,
+        "start_line": start_line,
+        "end_line": end_line,
+        "total_lines": total_lines,
+        "lines": lines,
+    }
 
 
 # ---------- Query Engine ----------

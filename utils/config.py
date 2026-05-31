@@ -45,4 +45,5 @@ COOKIE_SECURE: bool = os.getenv("LOG_VIEWER_COOKIE_SECURE", "NO").upper() == "YE
 MAX_RESULTS: int = int(os.getenv("LOG_VIEWER_MAX_RESULTS", "500"))
 MAX_SCAN_LINES: int = int(os.getenv("LOG_VIEWER_MAX_SCAN_LINES", "12000"))
 MAX_LINE_LENGTH: int = int(os.getenv("LOG_VIEWER_MAX_LINE_LENGTH", "20000"))
+LOG_CONTEXT_LINES: int = int(os.getenv("LOG_VIEWER_CONTEXT_LINES", "30"))
 STREAM_INTERVAL_SECONDS: int = 5

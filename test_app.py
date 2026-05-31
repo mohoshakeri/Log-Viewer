@@ -9,7 +9,7 @@ from fastapi import FastAPI
 
 from main import create_app
 from utils.jalali import format_jalali, parse_jalali_datetime
-from utils.logs import parse_line, search_logs
+from utils.logs import iter_recent_lines, parse_line, read_log_context, search_logs
 from utils.security import create_session, read_session
 
 
@@ -21,6 +21,7 @@ class AppFactoryTestCase(unittest.TestCase):
         self.assertIsInstance(app, FastAPI)
         self.assertIn("/health", paths)
         self.assertIn("/api/logs", paths)
+        self.assertIn("/api/log-context", paths)
         self.assertIn("/static", paths)
 
 
@@ -70,7 +71,32 @@ class LogParsingTestCase(unittest.TestCase):
 
         self.assertEqual(1, len(entries))
         self.assertEqual("boom happened", entries[0].message)
+        self.assertEqual(2, entries[0].line_number)
         self.assertEqual({"scanned": 3, "matched": 1, "returned": 1, "files": 1}, stats)
+
+    def test_iter_recent_lines_uses_real_file_line_numbers(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            log_path: Path = Path(temp_dir) / "app.log"
+            log_path.write_text("\n".join("line {}".format(index) for index in range(1, 11)))
+
+            lines = list(iter_recent_lines(log_path, 3))
+
+        self.assertEqual([(8, "line 8"), (9, "line 9"), (10, "line 10")], lines)
+
+    def test_read_log_context_returns_lines_around_target(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir: Path = Path(temp_dir)
+            log_path: Path = data_dir / "app.log"
+            log_path.write_text("\n".join("line {}".format(index) for index in range(1, 8)))
+
+            with patch("utils.logs.DATA_DIR", data_dir):
+                context = read_log_context("app.log", 4, context_lines=2)
+
+        self.assertEqual("app.log", context["file"])
+        self.assertEqual(2, context["start_line"])
+        self.assertEqual(6, context["end_line"])
+        self.assertEqual([2, 3, 4, 5, 6], [item["line"] for item in context["lines"]])
+        self.assertEqual([False, False, True, False, False], [item["target"] for item in context["lines"]])
 
 
 class SessionTestCase(unittest.TestCase):
