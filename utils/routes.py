@@ -1,5 +1,6 @@
 import asyncio
 import json
+from collections.abc import AsyncIterator
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
@@ -91,7 +92,9 @@ async def files(username: str = Depends(require_user)) -> JSONResponse:
 async def logs(payload: SearchPayload, username: str = Depends(require_user)) -> JSONResponse:
     del username
     start_at = parse_gregorian_datetime(payload.start_gregorian) or parse_jalali_datetime(payload.start_jalali)
-    end_at = parse_gregorian_datetime(payload.end_gregorian) or parse_jalali_datetime(payload.end_jalali, end_of_day=True)
+    end_at = parse_gregorian_datetime(payload.end_gregorian) or parse_jalali_datetime(
+        payload.end_jalali, end_of_day=True
+    )
     entries, stats = search_logs(
         files=payload.files,
         query=payload.query,
@@ -107,9 +110,9 @@ async def logs(payload: SearchPayload, username: str = Depends(require_user)) ->
 @router.get("/api/stream")
 async def stream(
     request: Request,
-    files: list[str] = Query(default=[]),
+    files: list[str] = Query(default_factory=list),
     query: str = "",
-    levels: list[str] = Query(default=[]),
+    levels: list[str] = Query(default_factory=list),
     start_jalali: str = "",
     end_jalali: str = "",
     start_gregorian: str = "",
@@ -120,7 +123,7 @@ async def stream(
 ) -> StreamingResponse:
     del username
 
-    async def event_generator():
+    async def event_generator() -> AsyncIterator[str]:
         last_signature = ""
         while True:
             if await request.is_disconnected():
@@ -140,9 +143,9 @@ async def stream(
             signature = json.dumps([item["id"] for item in payload["items"][:20]], separators=(",", ":"))
             if signature != last_signature:
                 last_signature = signature
-                yield f"event: logs\ndata: {json.dumps(payload, ensure_ascii=False)}\n\n"
+                yield "event: logs\ndata: {}\n\n".format(json.dumps(payload, ensure_ascii=False))
             else:
-                yield f"event: ping\ndata: {json.dumps({'ok': True})}\n\n"
+                yield "event: ping\ndata: {}\n\n".format(json.dumps({"ok": True}))
             await asyncio.sleep(STREAM_INTERVAL_SECONDS)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")

@@ -68,10 +68,10 @@ def _b64_decode(payload: str) -> bytes:
 def create_session(username: str) -> str:
     issued_at = int(time.time())
     nonce = secrets.token_urlsafe(16)
-    payload = {"u": username, "iat": issued_at, "n": nonce}
+    payload: dict[str, str | int] = {"u": username, "iat": issued_at, "n": nonce}
     body = _b64_encode(json.dumps(payload, separators=(",", ":")).encode())
     signature = hmac.new(SESSION_SECRET.encode(), body.encode(), hashlib.sha256).digest()
-    return f"{body}.{_b64_encode(signature)}"
+    return "{}.{}".format(body, _b64_encode(signature))
 
 
 def read_session(token: str) -> dict[str, Any] | None:

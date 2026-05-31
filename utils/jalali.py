@@ -1,13 +1,13 @@
 from datetime import datetime
 
 
-GREGORIAN_MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
-JALALI_MONTH_DAYS = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29]
+GREGORIAN_MONTH_DAYS: list[int] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+JALALI_MONTH_DAYS: list[int] = [31, 31, 31, 31, 31, 31, 30, 30, 30, 30, 30, 29]
 
 
 # ---------- Digit Normalization ----------
 def normalize_digits(value: str) -> str:
-    table = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
+    table: dict[int, int | None] = str.maketrans("۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩", "01234567890123456789")
     return value.translate(table)
 
 
@@ -114,4 +114,4 @@ def format_jalali(dt: datetime | None) -> str | None:
     if not dt:
         return None
     jy, jm, jd = gregorian_to_jalali(dt.year, dt.month, dt.day)
-    return f"{jy:04d}/{jm:02d}/{jd:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
+    return "{:04d}/{:02d}/{:02d} {:02d}:{:02d}:{:02d}".format(jy, jm, jd, dt.hour, dt.minute, dt.second)

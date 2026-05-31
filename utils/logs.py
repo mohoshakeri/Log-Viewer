@@ -3,15 +3,15 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Iterable
+from typing import Any, Iterable
 
 from utils.config import DATA_DIR, MAX_LINE_LENGTH, MAX_RESULTS, MAX_SCAN_LINES
 from utils.jalali import format_jalali
 
 
-LEVEL_RE = re.compile(r"\b(CRITICAL|FATAL|ERROR|WARNING|WARN|INFO|DEBUG|TRACE)\b", re.IGNORECASE)
-NGINX_RE = re.compile(r"\[(?P<date>\d{1,2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
-ISO_RE = re.compile(r"\d{4}-\d{2}-\d{2}[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?")
+LEVEL_RE: re.Pattern[str] = re.compile(r"\b(CRITICAL|FATAL|ERROR|WARNING|WARN|INFO|DEBUG|TRACE)\b", re.IGNORECASE)
+NGINX_RE: re.Pattern[str] = re.compile(r"\[(?P<date>\d{1,2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
+ISO_RE: re.Pattern[str] = re.compile(r"\d{4}-\d{2}-\d{2}[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?")
 
 
 @dataclass
@@ -31,7 +31,7 @@ class LogEntry:
     level: str
     message: str
     raw: str
-    meta: dict
+    meta: dict[str, Any]
 
 
 # ---------- File Discovery ----------
@@ -64,7 +64,7 @@ def resolve_log_file(key: str) -> Path:
 
 
 # ---------- Date Parsing ----------
-def parse_timestamp(raw: str, parsed_json: dict | None = None) -> datetime | None:
+def parse_timestamp(raw: str, parsed_json: dict[str, Any] | None = None) -> datetime | None:
     values: list[str] = []
     if parsed_json:
         for key in ("@timestamp", "timestamp", "time", "datetime", "created_at"):
@@ -84,7 +84,11 @@ def parse_timestamp(raw: str, parsed_json: dict | None = None) -> datetime | Non
         normalized = value.replace("Z", "+00:00")
         try:
             if "/" in normalized and ":" in normalized and normalized[2] == "/":
-                return datetime.strptime(normalized, "%d/%b/%Y:%H:%M:%S %z").astimezone(timezone.utc).replace(tzinfo=None)
+                return (
+                    datetime.strptime(normalized, "%d/%b/%Y:%H:%M:%S %z")
+                    .astimezone(timezone.utc)
+                    .replace(tzinfo=None)
+                )
             dt = datetime.fromisoformat(normalized)
             if dt.tzinfo:
                 dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
@@ -94,7 +98,7 @@ def parse_timestamp(raw: str, parsed_json: dict | None = None) -> datetime | Non
     return None
 
 
-def detect_level(raw: str, parsed_json: dict | None = None) -> str:
+def detect_level(raw: str, parsed_json: dict[str, Any] | None = None) -> str:
     if parsed_json:
         value = parsed_json.get("level") or parsed_json.get("levelname") or parsed_json.get("severity")
         if isinstance(value, str) and value.strip():
@@ -109,7 +113,7 @@ def detect_level(raw: str, parsed_json: dict | None = None) -> str:
 def parse_line(file_key: str, line_number: int, raw: str) -> LogEntry:
     trimmed = raw.rstrip("\n")
     parsed_json = None
-    meta: dict = {}
+    meta: dict[str, Any] = {}
     message = trimmed
 
     try:
@@ -128,7 +132,7 @@ def parse_line(file_key: str, line_number: int, raw: str) -> LogEntry:
     timestamp = parse_timestamp(trimmed, parsed_json)
     level = detect_level(trimmed, parsed_json)
     return LogEntry(
-        id=f"{file_key}:{line_number}",
+        id="{}:{}".format(file_key, line_number),
         file=file_key,
         line_number=line_number,
         timestamp=timestamp,
@@ -191,7 +195,7 @@ def search_logs(
                 continue
             if end_at and (not entry.timestamp or entry.timestamp > end_at):
                 continue
-            haystack = f"{entry.raw} {entry.file}".casefold()
+            haystack = "{} {}".format(entry.raw, entry.file).casefold()
             if needles and not all(needle in haystack for needle in needles):
                 continue
             entries.append(entry)
