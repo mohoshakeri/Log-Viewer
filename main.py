@@ -7,7 +7,7 @@ from utils.routes import router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="Simple Log Viewer", version="1.0.0", debug=DEBUG)
+    app = FastAPI(title="Log Viewer", version="1.0.0", debug=DEBUG)
     register_middlewares(app)
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(router)
