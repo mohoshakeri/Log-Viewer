@@ -46,6 +46,9 @@ LOG_VIEWER_COOKIE_SECURE=YES
 DEBUG=NO
 ```
 
+The app refuses to start with the built-in development credentials unless
+`LOG_VIEWER_ALLOW_INSECURE_DEFAULTS=YES` is set explicitly.
+
 ## Run
 
 ```bash
@@ -96,6 +99,10 @@ python3 -m unittest test_app.py
 | `LOG_VIEWER_SESSION_COOKIE` | `slv_session` | Name of the browser session cookie. |
 | `LOG_VIEWER_COOKIE_SECURE` | `NO` | Set to `YES` when serving over HTTPS so the session cookie is marked secure. |
 | `LOG_VIEWER_SESSION_TTL_SECONDS` | `28800` | Session lifetime. |
+| `LOG_VIEWER_ALLOW_INSECURE_DEFAULTS` | `NO` | Allows the app to start with built-in development credentials when set to `YES`. Do not enable in production. |
+| `LOG_VIEWER_LOGIN_RATE_LIMIT_ATTEMPTS` | `5` | Failed login attempts allowed per client and username within the rate-limit window. |
+| `LOG_VIEWER_LOGIN_RATE_LIMIT_WINDOW_SECONDS` | `300` | Login rate-limit rolling window in seconds. |
+| `LOG_VIEWER_LOGIN_RATE_LIMIT_BLOCK_SECONDS` | `900` | Login block duration after too many failures. |
 | `LOG_VIEWER_LOGO_URL` | `/static/logo.png` | Logo URL shown in the header. |
 | `LOG_VIEWER_FAVICON_URL` | `/static/favicon.ico` | Favicon URL used by the page. |
 | `LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS` | `180` | Browser fetch timeout for API requests. Increase in slow development environments. |
@@ -105,6 +112,9 @@ python3 -m unittest test_app.py
 | `LOG_VIEWER_MAX_SCAN_LINES` | `12000` | Recent lines scanned per file. |
 | `LOG_VIEWER_MAX_LINE_LENGTH` | `20000` | Maximum number of characters read from each log line. Longer lines are truncated. |
 | `LOG_VIEWER_CONTEXT_LINES` | `30` | Lines shown before and after a selected log in the context modal. |
+| `LOG_VIEWER_MAX_SELECTED_FILES` | `50` | Maximum files scanned by one search or stream request. |
+| `LOG_VIEWER_MAX_CONTEXT_TARGET_LINE` | `1000000` | Maximum context target line accepted by `/api/log-context`. |
+| `LOG_VIEWER_MAX_LOG_FILE_BYTES` | `536870912` | Maximum log file size listed and scanned. Larger files are ignored. |
 
 ## API
 

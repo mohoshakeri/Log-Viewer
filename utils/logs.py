@@ -5,13 +5,23 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from utils.config import DATA_DIR, LOG_CONTEXT_LINES, MAX_LINE_LENGTH, MAX_RESULTS, MAX_SCAN_LINES
+from utils.config import (
+    DATA_DIR,
+    LOG_CONTEXT_LINES,
+    MAX_CONTEXT_TARGET_LINE,
+    MAX_LINE_LENGTH,
+    MAX_LOG_FILE_BYTES,
+    MAX_RESULTS,
+    MAX_SCAN_LINES,
+    MAX_SELECTED_FILES,
+)
 from utils.jalali import format_jalali
 
 
 LEVEL_RE: re.Pattern[str] = re.compile(r"\b(CRITICAL|FATAL|ERROR|WARNING|WARN|INFO|DEBUG|TRACE)\b", re.IGNORECASE)
 NGINX_RE: re.Pattern[str] = re.compile(r"\[(?P<date>\d{1,2}/[A-Za-z]{3}/\d{4}:\d{2}:\d{2}:\d{2} [+-]\d{4})\]")
 ISO_RE: re.Pattern[str] = re.compile(r"\d{4}-\d{2}-\d{2}[T ][\d:.]+(?:Z|[+-]\d{2}:?\d{2})?")
+ALLOWED_LEVELS: set[str] = {"CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE", "TEXT"}
 
 
 @dataclass
@@ -39,11 +49,13 @@ def list_log_files() -> list[LogFile]:
     DATA_DIR.mkdir(exist_ok=True)
     files: list[LogFile] = []
     for path in DATA_DIR.rglob("*"):
-        if not path.is_file():
+        if path.is_symlink() or not path.is_file():
             continue
         if ".log" not in path.name and not path.name.endswith((".txt", ".json")):
             continue
         stat = path.stat()
+        if stat.st_size > MAX_LOG_FILE_BYTES:
+            continue
         files.append(
             LogFile(
                 key=path.relative_to(DATA_DIR).as_posix(),
@@ -57,8 +69,9 @@ def list_log_files() -> list[LogFile]:
 
 def resolve_log_file(key: str) -> Path:
     cleaned = key.strip().lstrip("/")
-    candidate = (DATA_DIR / cleaned).resolve()
-    if DATA_DIR not in candidate.parents or not candidate.is_file():
+    original = DATA_DIR / cleaned
+    candidate = original.resolve()
+    if original.is_symlink() or DATA_DIR not in candidate.parents or not candidate.is_file():
         raise ValueError("Invalid log file.")
     return candidate
 
@@ -102,7 +115,8 @@ def detect_level(raw: str, parsed_json: dict[str, Any] | None = None) -> str:
     if parsed_json:
         value = parsed_json.get("level") or parsed_json.get("levelname") or parsed_json.get("severity")
         if isinstance(value, str) and value.strip():
-            return value.strip().upper().replace("WARN", "WARNING")
+            normalized = value.strip().upper().replace("WARN", "WARNING")
+            return normalized if normalized in ALLOWED_LEVELS else "TEXT"
     match = LEVEL_RE.search(raw)
     if not match:
         return "TEXT"
@@ -182,6 +196,8 @@ def iter_recent_lines(path: Path, max_lines: int) -> Iterable[tuple[int, str]]:
 
 
 def read_log_context(file_key: str, line_number: int, context_lines: int = LOG_CONTEXT_LINES) -> dict[str, Any]:
+    if line_number > MAX_CONTEXT_TARGET_LINE:
+        raise ValueError("Invalid target line.")
     path = resolve_log_file(file_key)
     total_lines = count_file_lines(path)
     target_line = max(1, min(line_number, total_lines))
@@ -226,7 +242,7 @@ def search_logs(
     limit: int = MAX_RESULTS,
 ) -> tuple[list[LogEntry], dict]:
     allowed_files = {item.key: item for item in list_log_files()}
-    selected_keys = files or list(allowed_files.keys())
+    selected_keys = (files or list(allowed_files.keys()))[:MAX_SELECTED_FILES]
     selected = [allowed_files[key] for key in selected_keys if key in allowed_files]
     level_set = {level.upper() for level in (levels or []) if level}
     needles = [part.casefold() for part in query.split() if part.strip()]

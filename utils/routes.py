@@ -17,7 +17,17 @@ from utils.config import (
 )
 from utils.jalali import parse_jalali_datetime
 from utils.logs import list_log_files, read_log_context, search_logs, serialize_entry, serialize_file
-from utils.security import clear_session_cookie, create_session, require_user, set_session_cookie, validate_login
+from utils.security import (
+    check_login_rate_limit,
+    clear_session_cookie,
+    create_session,
+    login_rate_key,
+    record_login_failure,
+    record_login_success,
+    require_user,
+    set_session_cookie,
+    validate_login,
+)
 
 
 router = APIRouter()
@@ -75,9 +85,13 @@ async def config() -> JSONResponse:
 
 # ---------- Auth Routes ----------
 @router.post("/api/login")
-async def login(payload: LoginPayload) -> JSONResponse:
+async def login(payload: LoginPayload, request: Request) -> JSONResponse:
+    rate_key = login_rate_key(request, payload.username)
+    check_login_rate_limit(rate_key)
     if not validate_login(payload.username, payload.password, payload.totp):
+        record_login_failure(rate_key)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
+    record_login_success(rate_key)
     response = JSONResponse({"ok": True, "username": payload.username})
     set_session_cookie(response, create_session(payload.username))
     return response

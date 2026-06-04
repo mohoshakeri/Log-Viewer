@@ -861,7 +861,9 @@
     }
 
     function levelClass(level) {
-      return `level-${String(level || "TEXT").toLowerCase()}`;
+      const normalized = String(level || "TEXT").toUpperCase();
+      const allowed = new Set(["CRITICAL", "FATAL", "ERROR", "WARNING", "INFO", "DEBUG", "TRACE", "TEXT"]);
+      return `level-${allowed.has(normalized) ? normalized.toLowerCase() : "text"}`;
     }
 
     function syntaxJson(value) {

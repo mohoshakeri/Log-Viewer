@@ -1,15 +1,21 @@
 import json
+import os
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
+os.environ.setdefault("LOG_VIEWER_USERNAME", "test-admin")
+os.environ.setdefault("LOG_VIEWER_PASSWORD", "test-password")
+os.environ.setdefault("LOG_VIEWER_TOTP_SECRET", "JBSWY3DPEHPK3PXQ")
+os.environ.setdefault("LOG_VIEWER_SESSION_SECRET", "test-session-secret-with-enough-entropy")
+
 from fastapi import FastAPI
 
 from main import create_app
 from utils.jalali import format_jalali, parse_jalali_datetime
-from utils.logs import iter_recent_lines, parse_line, read_log_context, search_logs
+from utils.logs import list_log_files, iter_recent_lines, parse_line, read_log_context, search_logs
 from utils.security import create_session, read_session
 
 
@@ -55,6 +61,13 @@ class LogParsingTestCase(unittest.TestCase):
         self.assertEqual("disk almost full", entry.message)
         self.assertEqual(datetime(2024, 3, 20, 12, 30, 45), entry.timestamp)
 
+    def test_parse_line_rejects_unknown_json_level(self) -> None:
+        raw: str = json.dumps({"level": 'x" onclick="alert(1)', "message": "bad level"})
+
+        entry = parse_line("app.log", 1, raw)
+
+        self.assertEqual("TEXT", entry.level)
+
     def test_search_logs_filters_by_file_query_level_and_limit(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             data_dir: Path = Path(temp_dir)
@@ -98,14 +111,33 @@ class LogParsingTestCase(unittest.TestCase):
         self.assertEqual([2, 3, 4, 5, 6], [item["line"] for item in context["lines"]])
         self.assertEqual([False, False, True, False, False], [item["target"] for item in context["lines"]])
 
+    def test_symlink_log_file_is_not_listed_or_read(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            data_dir: Path = Path(temp_dir) / "data"
+            outside_dir: Path = Path(temp_dir) / "outside"
+            data_dir.mkdir()
+            outside_dir.mkdir()
+            (data_dir / "app.log").write_text("safe")
+            secret_path: Path = outside_dir / "secret.log"
+            secret_path.write_text("secret")
+            (data_dir / "secret.log").symlink_to(secret_path)
+
+            with patch("utils.logs.DATA_DIR", data_dir):
+                files = list_log_files()
+                entries, stats = search_logs(files=["secret.log"], query="", levels=[], limit=10)
+
+        self.assertEqual(["app.log"], [item.key for item in files])
+        self.assertEqual([], entries)
+        self.assertEqual(0, stats["files"])
+
 
 class SessionTestCase(unittest.TestCase):
     def test_created_session_can_be_read_and_tampering_is_rejected(self) -> None:
-        token: str = create_session("admin")
+        token: str = create_session("test-admin")
         payload = read_session(token)
 
         self.assertIsNotNone(payload)
-        self.assertEqual("admin", payload["u"])
+        self.assertEqual("test-admin", payload["u"])
         self.assertIsNone(read_session("{}.broken".format(token)))
 
 

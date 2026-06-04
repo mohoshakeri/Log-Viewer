@@ -13,11 +13,18 @@ from utils.config import (
     AUTH_PASSWORD,
     AUTH_USERNAME,
     COOKIE_SECURE,
+    LOGIN_RATE_LIMIT_ATTEMPTS,
+    LOGIN_RATE_LIMIT_BLOCK_SECONDS,
+    LOGIN_RATE_LIMIT_WINDOW_SECONDS,
     SESSION_COOKIE,
     SESSION_SECRET,
     SESSION_TTL_SECONDS,
     TOTP_SECRET,
 )
+
+
+_login_attempts: dict[str, list[float]] = {}
+_login_blocked_until: dict[str, float] = {}
 
 
 # ---------- TOTP Verification ----------
@@ -124,3 +131,34 @@ def validate_login(username: str, password: str, totp_code: str) -> bool:
         and secrets.compare_digest(password, AUTH_PASSWORD)
         and verify_totp(totp_code)
     )
+
+
+def login_rate_key(request: Request, username: str) -> str:
+    client_host = request.client.host if request.client else "unknown"
+    return "{}:{}".format(client_host, username.strip().casefold())
+
+
+def check_login_rate_limit(key: str) -> None:
+    now = time.monotonic()
+    blocked_until = _login_blocked_until.get(key, 0)
+    if blocked_until > now:
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail="Too many login attempts.")
+    if blocked_until:
+        _login_blocked_until.pop(key, None)
+
+
+def record_login_failure(key: str) -> None:
+    now = time.monotonic()
+    window_start = now - LOGIN_RATE_LIMIT_WINDOW_SECONDS
+    attempts = [item for item in _login_attempts.get(key, []) if item >= window_start]
+    attempts.append(now)
+    if len(attempts) >= LOGIN_RATE_LIMIT_ATTEMPTS:
+        _login_blocked_until[key] = now + LOGIN_RATE_LIMIT_BLOCK_SECONDS
+        _login_attempts.pop(key, None)
+        return
+    _login_attempts[key] = attempts
+
+
+def record_login_success(key: str) -> None:
+    _login_attempts.pop(key, None)
+    _login_blocked_until.pop(key, None)
