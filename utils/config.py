@@ -21,8 +21,8 @@ DEBUG: bool = os.getenv("DEBUG", "NO").upper() == "YES"
 PORT: int = int(os.getenv("PORT", "8989"))
 BASE_URL: str = os.getenv("BASE_URL", "http://localhost:{}".format(PORT)).rstrip("/")
 CORS_ALLOWEDS: list[str] = [item.strip() for item in os.getenv("CORS_ALLOWEDS", "").split(",") if item.strip()]
-LOGO_URL: str = os.getenv("LOG_VIEWER_LOGO_URL", "").strip()
-FAVICON_URL: str = os.getenv("LOG_VIEWER_FAVICON_URL", "").strip()
+LOGO_URL: str = os.getenv("LOG_VIEWER_LOGO_URL", "/static/logo.png").strip()
+FAVICON_URL: str = os.getenv("LOG_VIEWER_FAVICON_URL", "/static/favicon.ico").strip()
 CLIENT_API_TIMEOUT_SECONDS: int = int(os.getenv("LOG_VIEWER_CLIENT_API_TIMEOUT_SECONDS", "180"))
 SERVER_KEEP_ALIVE_SECONDS: int = int(os.getenv("LOG_VIEWER_SERVER_KEEP_ALIVE_SECONDS", "120"))
 
