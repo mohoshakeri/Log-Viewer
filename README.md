@@ -2,7 +2,7 @@
 
 FastAPI log viewer for files under `data/` with Jalali and Gregorian date range filters, recent-minute filters, full-text search, colorful log levels, and 5-second live updates over Server-Sent Events.
 
-![img.png](static/img.png)
+![img.png](static/ScreenShot.png)
 
 ## Features
 
